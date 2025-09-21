@@ -137,6 +137,7 @@
 
         <h2 onclick="toggleSection(this)">Controls</h2>
         <div class="section">
+            <label><span>Clear after edits</span> <input type="checkbox" id="clearAfterEdits"></label>
             <button id="clear">Clear</button>
             <button id="savePNG">Save PNG</button>
             <button id="saveJSON">Save JSON</button>
@@ -170,6 +171,14 @@ resizeCanvas();
 function toggleSection(el) {
     const next = el.nextElementSibling;
     next.classList.toggle("hidden");
+}
+
+function maybeClearAfterEdit() {
+    if (document.getElementById("clearAfterEdits").checked) {
+        ctx.fillStyle = document.getElementById("bgColor").value;
+        ctx.fillRect(0,0,canvas.width,canvas.height);
+        t = 0;
+    }
 }
 
 function addGear(R=200, r=60, d=100, type="hypotrochoid", sides=6, spikes=5) {
@@ -211,19 +220,38 @@ function addGear(R=200, r=60, d=100, type="hypotrochoid", sides=6, spikes=5) {
         gears[gearId].type = e.target.value;
         div.querySelector(".polyOptions").classList.toggle("hidden", e.target.value!=="polygon");
         div.querySelector(".starOptions").classList.toggle("hidden", e.target.value!=="star");
+        maybeClearAfterEdit();
     });
 
-    div.querySelector(".R").addEventListener("input", e => gears[gearId].R = parseInt(e.target.value));
-    div.querySelector(".r").addEventListener("input", e => gears[gearId].r = parseInt(e.target.value));
-    div.querySelector(".d").addEventListener("input", e => gears[gearId].d = parseInt(e.target.value));
-    div.querySelector(".sides").addEventListener("input", e => gears[gearId].sides = parseInt(e.target.value));
-    div.querySelector(".spikes").addEventListener("input", e => gears[gearId].spikes = parseInt(e.target.value));
+    div.querySelector(".R").addEventListener("input", e => {
+        gears[gearId].R = parseInt(e.target.value);
+        maybeClearAfterEdit();
+    });
+    div.querySelector(".r").addEventListener("input", e => {
+        gears[gearId].r = parseInt(e.target.value);
+        maybeClearAfterEdit();
+    });
+    div.querySelector(".d").addEventListener("input", e => {
+        gears[gearId].d = parseInt(e.target.value);
+        maybeClearAfterEdit();
+    });
+    div.querySelector(".sides").addEventListener("input", e => {
+        gears[gearId].sides = parseInt(e.target.value);
+        maybeClearAfterEdit();
+    });
+    div.querySelector(".spikes").addEventListener("input", e => {
+        gears[gearId].spikes = parseInt(e.target.value);
+        maybeClearAfterEdit();
+    });
+
+    maybeClearAfterEdit();
 }
 document.getElementById("addGear").addEventListener("click", () => addGear());
 document.getElementById("removeGear").addEventListener("click", () => {
     if (gears.length > 0) {
         gears.pop();
         document.getElementById("gears").lastChild.remove();
+        maybeClearAfterEdit();
     }
 });
 
@@ -240,12 +268,21 @@ function addGradientStop(color="#ffffff", pos=0.5) {
     `;
     document.getElementById("gradientStops").appendChild(div);
 
-    div.querySelector("input[type=color]").addEventListener("input", e => gradientStops[stopId].color = e.target.value);
-    div.querySelector("input[type=number]").addEventListener("input", e => gradientStops[stopId].pos = parseFloat(e.target.value));
+    div.querySelector("input[type=color]").addEventListener("input", e => {
+        gradientStops[stopId].color = e.target.value;
+        maybeClearAfterEdit();
+    });
+    div.querySelector("input[type=number]").addEventListener("input", e => {
+        gradientStops[stopId].pos = parseFloat(e.target.value);
+        maybeClearAfterEdit();
+    });
     div.querySelector("button").addEventListener("click", () => {
         gradientStops.splice(stopId,1);
         div.remove();
+        maybeClearAfterEdit();
     });
+
+    maybeClearAfterEdit();
 }
 document.getElementById("addStop").addEventListener("click", () => addGradientStop());
 
@@ -339,7 +376,6 @@ function step() {
     if (running) requestAnimationFrame(step);
 }
 
-// === SAVE / LOAD ===
 document.getElementById("savePNG").addEventListener("click", () => {
     const link = document.createElement("a");
     link.download = "spirographics.png";
@@ -377,10 +413,14 @@ document.getElementById("jsonFile").addEventListener("change", (e) => {
         gears.forEach(g => addGear(g.R,g.r,g.d,g.type,g.sides,g.spikes));
         document.getElementById("gradientStops").innerHTML = "";
         gradientStops.forEach(s => addGradientStop(s.color,s.pos));
+        maybeClearAfterEdit();
     };
     reader.readAsText(file);
 });
 
+document.getElementById("bgColor").addEventListener("input", () => {
+    maybeClearAfterEdit();
+});
 
 addGear();
 addGradientStop("#00ffff",0);
