@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SpiroGraphics</title>
+<style>
+    body {
+        margin: 0;
+        display: flex;
+        height: 100vh;
+        overflow: hidden;
+        background: #111;
+        color: white;
+        font-family: Arial, sans-serif;
+    }
+
+    #controls {
+        width: 340px;
+        background: #1a1a1a;
+        padding: 15px;
+        overflow-y: auto;
+        border-right: 2px solid #333;
+    }
+
+    h2 {
+        font-size: 16px;
+        margin: 10px 0;
+        cursor: pointer;
+        background: #222;
+        padding: 6px;
+        border-radius: 5px;
+    }
+
+    .section {
+        margin-bottom: 12px;
+        padding: 10px;
+        border-radius: 6px;
+        background: #222;
+    }
+
+    label {
+        display: flex;
+        justify-content: space-between;
+        font-size: 13px;
+        margin: 6px 0 2px;
+    }
+
+    input, select, button {
+        width: 100%;
+        padding: 6px;
+        border: none;
+        border-radius: 4px;
+        background: #333;
+        color: white;
+        font-size: 13px;
+        margin-bottom: 8px;
+    }
+
+    input[type="range"] {
+        padding: 0;
+    }
+
+    button {
+        cursor: pointer;
+        background: #444;
+        transition: background 0.2s;
+    }
+    button:hover {
+        background: #666;
+    }
+
+    .gradient-stop {
+        display: flex;
+        align-items: center;
+        margin-bottom: 5px;
+    }
+    .gradient-stop input[type=color] {
+        flex: 1;
+        margin-right: 5px;
+    }
+    .gradient-stop input[type=number] {
+        width: 60px;
+        margin-right: 5px;
+    }
+
+    #canvas-container {
+        flex-grow: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: black;
+    }
+
+    canvas {
+        display: block;
+    }
+
+    .hidden { display: none; }
+</style>
+</head>
+<body>
+    <div id="controls">
+        <h2 onclick="toggleSection(this)">Main Settings</h2>
+        <div class="section">
+            <label><span>Instant Mode</span> <input type="checkbox" id="instant"></label>
+            <label>Draw Speed</label>
+            <input type="range" id="speed" min="1" max="200" value="5">
+            <label>Trail Fade</label>
+            <input type="range" id="fade" min="0" max="1" step="0.01" value="0.02">
+            <label>Zoom</label>
+            <input type="range" id="zoom" min="0.2" max="3" step="0.1" value="1">
+            <label>Background</label>
+            <input type="color" id="bgColor" value="#000000">
+        </div>
+
+        <h2 onclick="toggleSection(this)">Dots</h2>
+        <div class="section">
+            <label>Dot Size</label>
+            <input type="range" id="dotSize" min="1" max="10" value="3">
+            <label>Dot Spacing</label>
+            <input type="range" id="dotSpacing" min="1" max="50" value="5">
+        </div>
+
+        <h2 onclick="toggleSection(this)">Gradient</h2>
+        <div class="section">
+            <div id="gradientStops"></div>
+            <button id="addStop">+ Add Stop</button>
+        </div>
+
+        <h2 onclick="toggleSection(this)">Gears</h2>
+        <div class="section">
+            <div id="gears"></div>
+            <button id="addGear">+ Add Gear</button>
+            <button id="removeGear">- Remove Gear</button>
+        </div>
+
+        <h2 onclick="toggleSection(this)">Controls</h2>
+        <div class="section">
+            <button id="clear">Clear</button>
+            <button id="savePNG">Save PNG</button>
+            <button id="saveJSON">Save JSON</button>
+            <button id="loadJSON">Load JSON</button>
+            <input type="file" id="jsonFile" accept=".json" class="hidden">
+        </div>
+    </div>
+
+    <div id="canvas-container">
+        <canvas id="canvas"></canvas>
+    </div>
+
+<script>
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+let gears = [];
+let gradientStops = [{color:"#00ffff", pos:0}, {color:"#ff00ff", pos:1}];
+let t = 0;
+let running = true;
+
+function resizeCanvas() {
+    const rect = document.getElementById("canvas-container").getBoundingClientRect();
+    let size = Math.min(rect.width, rect.height);
+    canvas.width = size;
+    canvas.height = size;
+}
+window.addEventListener("resize", resizeCanvas);
+resizeCanvas();
+
+function toggleSection(el) {
+    const next = el.nextElementSibling;
+    next.classList.toggle("hidden");
+}
+
+function addGear(R=200, r=60, d=100, type="hypotrochoid", sides=6, spikes=5) {
+    const gearId = gears.length;
+    gears.push({ R, r, d, type, sides, spikes });
+
+    const div = document.createElement("div");
+    div.className = "section";
+    div.innerHTML = `
+        <label>Type</label>
+        <select class="type">
+            <option value="hypotrochoid">Hypotrochoid</option>
+            <option value="epitrochoid">Epitrochoid</option>
+            <option value="rose">Rose</option>
+            <option value="lissajous">Lissajous</option>
+            <option value="polygon">Polygon</option>
+            <option value="star">Star</option>
+        </select>
+        <label>Big Radius (R)</label>
+        <input type="range" class="R" min="10" max="500" value="${R}">
+        <label>Small Radius (r)</label>
+        <input type="range" class="r" min="1" max="200" value="${r}">
+        <label>Offset (d)</label>
+        <input type="range" class="d" min="1" max="200" value="${d}">
+        <div class="polyOptions hidden">
+            <label>Sides</label>
+            <input type="range" class="sides" min="3" max="20" value="${sides}">
+        </div>
+        <div class="starOptions hidden">
+            <label>Spikes</label>
+            <input type="range" class="spikes" min="5" max="20" value="${spikes}">
+        </div>
+    `;
+    document.getElementById("gears").appendChild(div);
+
+    const typeEl = div.querySelector(".type");
+    typeEl.value = type;
+    typeEl.addEventListener("input", e => {
+        gears[gearId].type = e.target.value;
+        div.querySelector(".polyOptions").classList.toggle("hidden", e.target.value!=="polygon");
+        div.querySelector(".starOptions").classList.toggle("hidden", e.target.value!=="star");
+    });
+
+    div.querySelector(".R").addEventListener("input", e => gears[gearId].R = parseInt(e.target.value));
+    div.querySelector(".r").addEventListener("input", e => gears[gearId].r = parseInt(e.target.value));
+    div.querySelector(".d").addEventListener("input", e => gears[gearId].d = parseInt(e.target.value));
+    div.querySelector(".sides").addEventListener("input", e => gears[gearId].sides = parseInt(e.target.value));
+    div.querySelector(".spikes").addEventListener("input", e => gears[gearId].spikes = parseInt(e.target.value));
+}
+document.getElementById("addGear").addEventListener("click", () => addGear());
+document.getElementById("removeGear").addEventListener("click", () => {
+    if (gears.length > 0) {
+        gears.pop();
+        document.getElementById("gears").lastChild.remove();
+    }
+});
+
+function addGradientStop(color="#ffffff", pos=0.5) {
+    const stopId = gradientStops.length;
+    gradientStops.push({color, pos});
+
+    const div = document.createElement("div");
+    div.className = "gradient-stop";
+    div.innerHTML = `
+        <input type="color" value="${color}">
+        <input type="number" min="0" max="1" step="0.01" value="${pos}">
+        <button>x</button>
+    `;
+    document.getElementById("gradientStops").appendChild(div);
+
+    div.querySelector("input[type=color]").addEventListener("input", e => gradientStops[stopId].color = e.target.value);
+    div.querySelector("input[type=number]").addEventListener("input", e => gradientStops[stopId].pos = parseFloat(e.target.value));
+    div.querySelector("button").addEventListener("click", () => {
+        gradientStops.splice(stopId,1);
+        div.remove();
+    });
+}
+document.getElementById("addStop").addEventListener("click", () => addGradientStop());
+
+function getGradientColor(x,y) {
+    let dist = Math.sqrt(x*x+y*y)/(canvas.width/2);
+    dist = Math.min(Math.max(dist,0),1);
+    gradientStops.sort((a,b)=>a.pos-b.pos);
+    for (let i=0;i<gradientStops.length-1;i++) {
+        let s=gradientStops[i], e=gradientStops[i+1];
+        if (dist>=s.pos && dist<=e.pos) {
+            let amt = (dist-s.pos)/(e.pos-s.pos);
+            return lerpColor(s.color,e.color,amt);
+        }
+    }
+    return gradientStops[gradientStops.length-1].color;
+}
+
+function lerpColor(a, b, amount) {
+    const ah = parseInt(a.replace("#",""),16), ar = ah>>16, ag = ah>>8&0xff, ab = ah&0xff;
+    const bh = parseInt(b.replace("#",""),16), br = bh>>16, bg = bh>>8&0xff, bb = bh&0xff;
+    const rr = ar + amount*(br-ar);
+    const rg = ag + amount*(bg-ag);
+    const rb = ab + amount*(bb-ab);
+    return `rgb(${rr|0},${rg|0},${rb|0})`;
+}
+
+function step() {
+    const instant = document.getElementById("instant").checked;
+    const speed = parseInt(document.getElementById("speed").value);
+    const fade = parseFloat(document.getElementById("fade").value);
+    const dotSize = parseInt(document.getElementById("dotSize").value);
+    const spacing = parseInt(document.getElementById("dotSpacing").value);
+    const zoom = parseFloat(document.getElementById("zoom").value);
+
+    if (fade>0) {
+        ctx.fillStyle = document.getElementById("bgColor").value + "10";
+        ctx.fillRect(0,0,canvas.width,canvas.height);
+    }
+
+    let iterations = instant ? 3000 : speed;
+    for (let s=0; s<iterations; s++) {
+        let x=0, y=0;
+        for (let g of gears) {
+            let gx=0, gy=0;
+            switch(g.type) {
+                case "hypotrochoid":
+                    gx = (g.R-g.r) * Math.cos(t) + g.d * Math.cos(((g.R-g.r)/g.r) * t);
+                    gy = (g.R-g.r) * Math.sin(t) - g.d * Math.sin(((g.R-g.r)/g.r) * t);
+                    break;
+                case "epitrochoid":
+                    gx = (g.R+g.r) * Math.cos(t) - g.d * Math.cos(((g.R+g.r)/g.r) * t);
+                    gy = (g.R+g.r) * Math.sin(t) - g.d * Math.sin(((g.R+g.r)/g.r) * t);
+                    break;
+                case "rose":
+                    let k = g.R/g.r;
+                    let radius = g.d * Math.cos(k*t);
+                    gx = radius * Math.cos(t);
+                    gy = radius * Math.sin(t);
+                    break;
+                case "lissajous":
+                    gx = g.d * Math.sin(g.R * t + Math.PI/2);
+                    gy = g.d * Math.sin(g.r * t);
+                    break;
+                case "polygon":
+                    gx = g.R * Math.cos((2*Math.PI/g.sides) * Math.floor(t%(2*Math.PI)/(2*Math.PI/g.sides))) + g.d*Math.cos(g.r*t);
+                    gy = g.R * Math.sin((2*Math.PI/g.sides) * Math.floor(t%(2*Math.PI)/(2*Math.PI/g.sides))) + g.d*Math.sin(g.r*t);
+                    break;
+                case "star":
+                    let ang = t%(2*Math.PI);
+                    let rad = (Math.floor(ang/(Math.PI/g.spikes))%2===0? g.R : -g.R);
+                    gx = rad*Math.cos(t)+g.d*Math.cos(g.r*t);
+                    gy = rad*Math.sin(t)+g.d*Math.sin(g.r*t);
+                    break;
+            }
+            x += gx;
+            y += gy;
+        }
+
+        let cx = canvas.width/2 + x*zoom;
+        let cy = canvas.height/2 + y*zoom;
+
+        if (s % spacing === 0) {
+            ctx.fillStyle = getGradientColor(x,y);
+            ctx.beginPath();
+            ctx.arc(cx, cy, dotSize, 0, Math.PI*2);
+            ctx.fill();
+        }
+        t += 0.01;
+    }
+
+    if (running) requestAnimationFrame(step);
+}
+
+// === SAVE / LOAD ===
+document.getElementById("savePNG").addEventListener("click", () => {
+    const link = document.createElement("a");
+    link.download = "spirographics.png";
+    link.href = canvas.toDataURL();
+    link.click();
+});
+
+document.getElementById("clear").addEventListener("click", () => {
+    ctx.fillStyle = document.getElementById("bgColor").value;
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    t=0;
+});
+
+document.getElementById("saveJSON").addEventListener("click", () => {
+    const data = { gears, gradientStops };
+    const blob = new Blob([JSON.stringify(data,null,2)], { type:"application/json" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "spirographics.json";
+    link.click();
+});
+
+document.getElementById("loadJSON").addEventListener("click", () => {
+    document.getElementById("jsonFile").click();
+});
+document.getElementById("jsonFile").addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+        const data = JSON.parse(ev.target.result);
+        gears = data.gears || [];
+        gradientStops = data.gradientStops || [];
+        document.getElementById("gears").innerHTML = "";
+        gears.forEach(g => addGear(g.R,g.r,g.d,g.type,g.sides,g.spikes));
+        document.getElementById("gradientStops").innerHTML = "";
+        gradientStops.forEach(s => addGradientStop(s.color,s.pos));
+    };
+    reader.readAsText(file);
+});
+
+
+addGear();
+addGradientStop("#00ffff",0);
+addGradientStop("#ff00ff",1);
+ctx.fillStyle = document.getElementById("bgColor").value;
+ctx.fillRect(0,0,canvas.width,canvas.height);
+step();
+</script>
+</body>
+</html>
